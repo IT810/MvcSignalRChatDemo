@@ -1,0 +1,161 @@
+﻿@{
+    ViewBag.Title = "Home Page";
+}
+
+<div class="container" style="width:1000px">
+    <div class="row clearfix">
+        <div class="col-lg-12">
+            <div class="card chat-app">
+                <div id="plist" class="people-list">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fa fa-search"></i></span>
+                        </div>
+                        <input type="text" class="form-control" placeholder="Search...">
+                    </div>
+                    <ul class="list-unstyled chat-list mt-2 mb-0" id="onlineusers">
+                    </ul>
+                </div>
+                <div class="chat">
+                    <div class="chat-header clearfix">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <a href="javascript:void(0);" data-toggle="modal" data-target="#view_info">
+                                    <img src="https://static.wixstatic.com/media/713b90_7841ba78e810446f8765776b69ee76e3~mv2.png" alt="avatar">
+                                </a>
+                                <div class="chat-about">
+                                    <h6>Chat App</h6>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 hidden-sm text-right">
+                                <input type="hidden" id="nickname" />
+                                <select id="users">
+                                    <option value="All">All</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-history">
+                        <ul class="m-b-0" id="chatlog">
+                        </ul>
+                    </div>
+                    <div class="chat-message clearfix">
+                        <div class="input-group mb-0">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text" id="btnsend"><i class="fa fa-send"></i></span>
+                            </div>
+                            <input type="text" id="message" class="form-control" placeholder="Enter text here...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="dialog" aria-modal="true" role="dialog">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Enter your name to start a chat.</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" id="nick" />
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" id="oke" class="btn btn-primary">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    @Scripts.Render("~/Scripts/jquery-ui.js")
+    @Scripts.Render("~/Scripts/jquery.signalR-2.4.3.min.js")
+    @Scripts.Render("/signalr/hubs")
+
+    <script type="text/javascript">
+        $(function () {
+            showModalUserNickName();
+        });
+
+        function showModalUserNickName() {
+            var modal = $('#dialog');
+            var span = $('#oke');
+            modal.modal("show");
+
+            span.click(function () {
+                modal.modal('hide');
+                startChatHub();
+            });
+        }
+
+        function startChatHub() {
+            var chat = $.connection.chatHub;
+
+            // Get the user name.
+            $('#nickname').val($('#nick').val());
+            chat.client.differentName = function (name) {
+                showModalUserNickName();
+                return false;
+                // Prompts for different user name
+                $('#nickname').val($('#nick').val());
+                chat.server.notify($('#nickname').val(), $.connection.hub.id);
+            };
+
+            chat.client.online = function (name) {
+                // Update list of users
+                if (name == $('#nickname').val())
+                    $('#onlineusers').append('<li class="clearfix"><img src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460__340.png" alt = "avatar" ><div class="about"><div class="name">You: ' + name + '</div></div></li>');
+                else {
+                    $('#onlineusers').append('<li class="clearfix"><img src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460__340.png" alt = "avatar" ><div class="about"><div class="name">' + name + '</div></div></li>');
+                    $("#users").append('<option value="' + name + '">' + name + '</option>');
+                }
+            };
+
+            chat.client.enters = function (name) {
+                $('#chatlog').append('<li class="clearfix"><div class="message-data"><span class="message-data-time">' + name + '</span></div><div class="message my-message">join the conversation</div></li ></i></div>');
+                $("#users").append('<option value="' + name + '">' + name + '</option>');
+                $('#onlineusers').append('<li class="clearfix"><img src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460__340.png" alt = "avatar" ><div class="about"><div class="name">' + name + '</div></div></li>');
+            };
+            // Create a function that the hub can call to broadcast chat messages.
+            chat.client.broadcastMessage = function (name, message) {
+                //Interpret smileys
+                message = message.replace(":)", "<img src=\"/images/smile.gif\" class=\"smileys\" />");
+                message = message.replace(":D", "<img src=\"/images/laugh.gif\" class=\"smileys\" />");
+                message = message.replace(":o", "<img src=\"/images/cool.gif\" class=\"smileys\" />");
+
+                //display the message
+                $('#chatlog').append('<li class="clearfix"><div class="message-data"><span class="message-data-time">' + name + '</span></div><div class="message my-message">'+ message +'</div></li ></i></div>');
+            };
+
+            chat.client.disconnected = function (name) {
+                //Calls when someone leaves the page
+                $('#chatlog').append('<li class="clearfix"><div class="message-data"><span class="message-data-time">'+name+'</span></div><div class="message my-message">leaves the conversation</div></li ></i></div>');
+                $('#onlineusers li').remove(":contains('" + name + "')");
+                $("#users option").remove(":contains('" + name + "')");
+            }
+
+            // Start the connection.
+            $.connection.hub.start().done(function () {
+                //Calls the notify method of the server
+                chat.server.notify($('#nickname').val(), $.connection.hub.id);
+
+                $('#btnsend').click(function () {
+                    if ($("#users").val() == "All") {
+                        // Call the Send method on the hub.
+                        chat.server.send($('#nickname').val(), $('#message').val());
+                    }
+                    else {
+                        chat.server.sendToSpecific($('#nickname').val(), $('#message').val(), $("#users").val());
+                    }
+                    // Clear text box and reset focus for next comment.
+                    $('#message').val('').focus();
+                });
+
+            });
+        }
+    </script>
+}
